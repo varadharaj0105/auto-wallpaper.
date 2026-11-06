@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -30,14 +31,32 @@ class MainActivity : Activity() {
             setOnClickListener { applyWallpaper() }
         }
 
+        val update = Button(this).apply {
+            visibility = View.GONE
+            setOnClickListener {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.DOWNLOAD_URL)))
+            }
+        }
+        val version = TextView(this).apply {
+            textSize = 12f
+            text = "Version 1.${Updater.currentBuild(this@MainActivity)}"
+        }
+
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(status)
             addView(pick)
             addView(apply)
+            addView(update)
+            addView(version)
         })
         refresh()
+
+        Updater.check(this) { latest ->
+            update.text = "Update available (1.$latest), tap to download"
+            update.visibility = View.VISIBLE
+        }
     }
 
     private fun refresh() {

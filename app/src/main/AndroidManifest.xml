@@ -5,6 +5,9 @@
         android:name="android.software.live_wallpaper"
         android:required="true" />
 
+    <!-- Only used by the app screen to check GitHub for a newer version. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="false"
         android:icon="@android:drawable/ic_menu_gallery"
