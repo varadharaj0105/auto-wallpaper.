@@ -44,6 +44,8 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
+            adb shell settings put global hide_error_dialogs 1
+            sleep 20 && adb shell input keyevent KEYCODE_HOME
             gradle connectedDebugAndroidTest --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true || true
             adb exec-out run-as com.varadha.autowallpaper tar c -C files shots > shots.tar
             mkdir -p out && tar xf shots.tar -C out && ls -la out/shots

@@ -166,7 +166,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/phone"
                 style="?attr/materialCardViewOutlinedStyle"
-                android:layout_width="210dp"
+                android:layout_width="184dp"
                 android:layout_height="456dp"
                 android:layout_gravity="center_horizontal"
                 android:clickable="true"
