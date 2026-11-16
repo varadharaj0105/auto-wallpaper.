@@ -385,6 +385,10 @@
                         layout="@layout/row_switch" />
 
                     <include
+                        android:id="@+id/rowFitNew"
+                        layout="@layout/row_switch" />
+
+                    <include
                         android:id="@+id/rowAnimate"
                         layout="@layout/row_switch" />
 

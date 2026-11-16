@@ -9,16 +9,31 @@ import kotlin.random.Random
 
 /**
  * One wallpaper photo. The image itself is a copy kept inside the app (so it keeps working
- * even if the original is moved or deleted). zoom/cx/cy is how the user framed it:
- * zoom 1 = fill the screen, cx/cy = which point of the photo sits in the screen centre (0..1).
+ * even if the original is moved or deleted).
+ *
+ * cl/ct/cr/cb = crop box (0..1 of the photo).
+ * zoom: 1 = fill the screen, below 1 = show more (down to "fit whole photo"), above 1 = zoom in.
+ * cx/cy = which point of the cropped photo sits in the screen centre (0..1).
+ * bg = what fills empty space when the photo doesn't cover the screen.
  */
 data class Photo(
     val id: String,
     val zoom: Float = 1f,
     val cx: Float = 0.5f,
-    val cy: Float = 0.5f
+    val cy: Float = 0.5f,
+    val cl: Float = 0f,
+    val ct: Float = 0f,
+    val cr: Float = 1f,
+    val cb: Float = 1f,
+    val bg: Int = BG_BLUR
 ) {
     fun file(c: Context) = File(Store.dir(c), "$id.jpg")
+
+    companion object {
+        const val BG_BLUR = 0
+        const val BG_DARK = 1
+        const val BG_COLOR = 2
+    }
 }
 
 /** Everything the app remembers. Both the app screen and the wallpaper read from here. */
@@ -33,6 +48,7 @@ object Store {
     const val K_ANIMATE = "animate"
     const val K_DIM = "dim"
     const val K_COLORS = "match_colors"
+    const val K_FIT_NEW = "fit_new"
 
     fun prefs(c: Context): SharedPreferences =
         c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -48,10 +64,15 @@ object Store {
             (0 until a.length()).map {
                 val o = a.getJSONObject(it)
                 Photo(
-                    o.getString("id"),
-                    o.optDouble("z", 1.0).toFloat(),
-                    o.optDouble("x", 0.5).toFloat(),
-                    o.optDouble("y", 0.5).toFloat()
+                    id = o.getString("id"),
+                    zoom = o.optDouble("z", 1.0).toFloat(),
+                    cx = o.optDouble("x", 0.5).toFloat(),
+                    cy = o.optDouble("y", 0.5).toFloat(),
+                    cl = o.optDouble("cl", 0.0).toFloat(),
+                    ct = o.optDouble("ct", 0.0).toFloat(),
+                    cr = o.optDouble("cr", 1.0).toFloat(),
+                    cb = o.optDouble("cb", 1.0).toFloat(),
+                    bg = o.optInt("bg", Photo.BG_BLUR)
                 )
             }
         } catch (e: Exception) {
@@ -68,6 +89,11 @@ object Store {
                     .put("z", it.zoom.toDouble())
                     .put("x", it.cx.toDouble())
                     .put("y", it.cy.toDouble())
+                    .put("cl", it.cl.toDouble())
+                    .put("ct", it.ct.toDouble())
+                    .put("cr", it.cr.toDouble())
+                    .put("cb", it.cb.toDouble())
+                    .put("bg", it.bg)
             )
         }
         prefs(c).edit().putString(K_PHOTOS, a.toString()).apply()
@@ -121,6 +147,9 @@ object Store {
 
     fun dim(c: Context) = prefs(c).getBoolean(K_DIM, false)
     fun setDim(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_DIM, on).apply()
+
+    fun fitNew(c: Context) = prefs(c).getBoolean(K_FIT_NEW, false)
+    fun setFitNew(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_FIT_NEW, on).apply()
 
     fun matchColors(c: Context) = prefs(c).getBoolean(K_COLORS, false)
     fun setMatchColors(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_COLORS, on).apply()

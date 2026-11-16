@@ -17,7 +17,7 @@
         android:layout_gravity="center"
         android:indeterminate="true" />
 
-    <!-- Lock-screen clock guide so you can keep faces clear of it -->
+    <!-- Hint + lock-screen clock guide so you can keep faces clear of it -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -35,7 +35,6 @@
             android:paddingTop="6dp"
             android:paddingEnd="14dp"
             android:paddingBottom="6dp"
-            android:text="Pinch to zoom · Drag to move · Double-tap"
             android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textColor="@android:color/white" />
 
@@ -64,54 +63,233 @@
             android:textSize="88sp" />
     </LinearLayout>
 
+    <!-- Controls -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="@drawable/scrim_bottom"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:paddingStart="16dp"
-        android:paddingTop="48dp"
+        android:paddingTop="40dp"
         android:paddingEnd="16dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCancel"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="wrap_content"
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/tabs"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:contentDescription="Cancel"
-            app:icon="@drawable/ic_close"
-            app:iconTint="@android:color/white" />
+            app:selectionRequired="true"
+            app:singleSelection="true">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGuides"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="wrap_content"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tabPosition"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Position"
+                app:icon="@drawable/ic_open_with" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/tabCrop"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Crop"
+                app:icon="@drawable/ic_crop" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <!-- Position options -->
+        <LinearLayout
+            android:id="@+id/positionOptions"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:contentDescription="Show or hide clock guide"
-            app:icon="@drawable/ic_visibility"
-            app:iconTint="@android:color/white" />
+            android:layout_marginTop="12dp"
+            android:orientation="vertical">
 
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnReset"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="Size" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipsSize"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:singleSelection="true">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipFill"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Fill screen" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipFit"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Fit whole photo" />
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/sizeHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="96dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="#B3FFFFFF" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/EditorLabel"
+                    android:text="Empty space" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipsBg"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipBgBlur"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Blur" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipBgColor"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Colour" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipBgDark"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Black" />
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Crop options -->
+        <LinearLayout
+            android:id="@+id/cropOptions"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Reset" />
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSave"
-            android:layout_width="wrap_content"
+            <TextView
+                style="@style/EditorLabel"
+                android:text="Shape" />
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipsAspect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                app:selectionRequired="true"
+                app:singleSelection="true">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipFree"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Free" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipScreen"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Screen" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipSquare"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1:1" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipFourFive"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="4:5" />
+            </com.google.android.material.chip.ChipGroup>
+        </LinearLayout>
+
+        <!-- Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="Save"
-            app:icon="@drawable/ic_check" />
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancel"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="Cancel"
+                app:icon="@drawable/ic_close"
+                app:iconTint="@android:color/white" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnGuides"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="Show or hide clock guide"
+                app:icon="@drawable/ic_visibility"
+                app:iconTint="@android:color/white" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnReset"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reset" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSave"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Save"
+                app:icon="@drawable/ic_check" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

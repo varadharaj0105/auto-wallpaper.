@@ -150,6 +150,26 @@ class MainActivity : AppCompatActivity() {
             render()
             snack("Wallpaper changed")
         }
+        // Quick Fit / Fill switch for photos that don't match the screen shape.
+        val size = Importer.imageSize(p.file(this))
+        val rw = size?.let { (p.cr - p.cl) * it.first }
+        val rh = size?.let { (p.cb - p.ct) * it.second }
+        val fitZoom = if (rw != null && rh != null) {
+            val (sw, sh) = Importer.screenSize(this)
+            Framing.minZoom(rw, rh, sw, sh)
+        } else 1f
+        val isFit = kotlin.math.abs(p.zoom - fitZoom) < 0.01f
+        if (fitZoom > 0.99f) {
+            sb.actionFit.visibility = View.GONE // already the screen's shape
+        } else {
+            sb.actionFit.text = if (isFit) "Fill the screen" else "Fit whole photo"
+        }
+        sb.actionFit.setOnClickListener {
+            sheet.dismiss()
+            Store.update(this, if (isFit) p.copy(zoom = 1f) else p.copy(zoom = fitZoom, cx = 0.5f, cy = 0.5f))
+            render()
+            snack(if (isFit) "Fills the screen" else "Whole photo visible")
+        }
         sb.actionAdjust.setOnClickListener {
             sheet.dismiss()
             openAdjust(p.id)
@@ -236,6 +256,10 @@ class MainActivity : AppCompatActivity() {
             Store.setShuffle(this, it)
             renderHero()
         }
+        row(
+            b.rowFitNew, R.drawable.ic_fit_screen, "Fit new photos",
+            "Show the whole photo instead of filling the screen", Store.fitNew(this)
+        ) { Store.setFitNew(this, it) }
         row(
             b.rowAnimate, R.drawable.ic_auto_awesome, "Wake-up animation",
             "Gentle zoom when you turn the screen on", Store.animate(this)

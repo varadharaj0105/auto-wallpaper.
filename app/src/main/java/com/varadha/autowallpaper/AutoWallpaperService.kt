@@ -10,7 +10,6 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.ImageDecoder
-import android.graphics.Matrix
 import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
@@ -47,8 +46,7 @@ class AutoWallpaperService : WallpaperService() {
         private var lockedSinceShown = false
         private var animStart = 0L
 
-        private val matrix = Matrix()
-        private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        private val renderer = Renderer()
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textAlign = Paint.Align.CENTER
@@ -166,7 +164,7 @@ class AutoWallpaperService : WallpaperService() {
                 return
             }
             photo = p // framing can change without a new decode
-            val key = "${p.id}|${surfaceW}x$surfaceH|${(p.zoom * 2).roundToInt()}"
+            val key = "${p.id}|${surfaceW}x$surfaceH|${(p.zoom * 2).roundToInt()}|${p.cl},${p.ct},${p.cr},${p.cb}"
             if (key == loadedKey && bitmap != null) return
             bitmap = decode(p)
             loadedKey = key
@@ -179,7 +177,10 @@ class AutoWallpaperService : WallpaperService() {
                 d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                 val w = info.size.width
                 val h = info.size.height
-                val need = min(1f, max(surfaceW.toFloat() / w, surfaceH.toFloat() / h) * max(1f, p.zoom))
+                // Pixels needed for the cropped part to fill the screen at this zoom.
+                val rw = max(1f, (p.cr - p.cl) * w)
+                val rh = max(1f, (p.cb - p.ct) * h)
+                val need = min(1f, max(surfaceW / rw, surfaceH / rh) * max(1f, p.zoom))
                 if (need < 1f) {
                     d.setTargetSize(
                         (w * need).roundToInt().coerceAtLeast(1),
@@ -207,12 +208,7 @@ class AutoWallpaperService : WallpaperService() {
                 val b = bitmap
                 val p = photo
                 if (b != null && p != null) {
-                    Framing.matrix(
-                        matrix, b.width, b.height,
-                        surfaceW.toFloat(), surfaceH.toFloat(),
-                        p.zoom, p.cx, p.cy, extraZoom
-                    )
-                    canvas.drawBitmap(b, matrix, paint)
+                    renderer.draw(canvas, b, p, surfaceW.toFloat(), surfaceH.toFloat(), extraZoom)
                     if (Store.dim(ctx) && isNight()) canvas.drawColor(DIM_COLOR)
                 } else {
                     canvas.drawText(

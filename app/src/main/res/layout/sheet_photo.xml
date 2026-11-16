@@ -58,10 +58,16 @@
         android:text="Set as wallpaper now" />
 
     <TextView
+        android:id="@+id/actionFit"
+        style="@style/SheetAction"
+        android:drawableStart="@drawable/ic_fit_screen"
+        android:text="Fit whole photo" />
+
+    <TextView
         android:id="@+id/actionAdjust"
         style="@style/SheetAction"
         android:drawableStart="@drawable/ic_crop"
-        android:text="Adjust position" />
+        android:text="Edit: position, size, crop" />
 
     <TextView
         android:id="@+id/actionRemove"

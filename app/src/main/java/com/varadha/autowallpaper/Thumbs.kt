@@ -19,7 +19,7 @@ object Thumbs {
     private val main = Handler(Looper.getMainLooper())
 
     fun load(view: FramedImageView, p: Photo, targetWidth: Int) {
-        view.setFraming(p.zoom, p.cx, p.cy)
+        view.setPhoto(p)
         val key = "${p.id}@$targetWidth"
         view.loadKey = key
         cache.get(key)?.let {
