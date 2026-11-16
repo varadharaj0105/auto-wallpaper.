@@ -1,13 +1,11 @@
 package com.varadha.autowallpaper
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
-import android.widget.ImageView
+import java.io.File
 import java.util.concurrent.Executors
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -20,42 +18,47 @@ object Thumbs {
     private val pool = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())
 
-    fun load(view: ImageView, uri: Uri, targetWidth: Int, onDone: (() -> Unit)? = null) {
-        val key = "$uri@$targetWidth"
-        view.tag = key
+    fun load(view: FramedImageView, p: Photo, targetWidth: Int) {
+        view.setFraming(p.zoom, p.cx, p.cy)
+        val key = "${p.id}@$targetWidth"
+        view.loadKey = key
         cache.get(key)?.let {
-            view.setImageBitmap(it)
-            onDone?.invoke()
+            view.setBitmap(it)
             return
         }
-        view.setImageDrawable(null)
-        val ctx = view.context.applicationContext
+        view.setBitmap(null)
+        val file = p.file(view.context)
         pool.execute {
-            val bmp = decode(ctx, uri, targetWidth) ?: return@execute
+            val bmp = decode(file, targetWidth) ?: return@execute
             cache.put(key, bmp)
             main.post {
-                if (view.tag == key) {
-                    view.setImageBitmap(bmp)
+                if (view.loadKey == key) {
+                    view.setBitmap(bmp)
                     view.alpha = 0f
-                    view.animate().alpha(1f).setDuration(180).start()
-                    onDone?.invoke()
+                    view.animate().alpha(1f).setDuration(160).start()
                 }
             }
         }
     }
 
-    private fun decode(c: Context, uri: Uri, targetWidth: Int): Bitmap? = try {
-        ImageDecoder.decodeBitmap(ImageDecoder.createSource(c.contentResolver, uri)) { d, info, _ ->
+    /** Full-size-ish decode for the editor. Off the main thread. */
+    fun decodeFull(file: File): Bitmap? = runCatching {
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { d, _, _ ->
+            d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+    }.getOrNull()
+
+    private fun decode(file: File, targetWidth: Int): Bitmap? = runCatching {
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { d, info, _ ->
+            d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             d.memorySizePolicy = ImageDecoder.MEMORY_POLICY_LOW_RAM
-            val scale = targetWidth.toFloat() / info.size.width
-            if (scale < 1f) {
-                d.setTargetSize(
-                    targetWidth,
-                    max(1, (info.size.height * scale).roundToInt())
-                )
+            val w = info.size.width
+            val h = info.size.height
+            // Big enough to fill a phone-shaped tile (about 1 : 2.1) of this width.
+            val s = max(targetWidth.toFloat() / w, targetWidth * 2.1f / h)
+            if (s < 1f) {
+                d.setTargetSize((w * s).roundToInt().coerceAtLeast(1), (h * s).roundToInt().coerceAtLeast(1))
             }
         }
-    } catch (e: Exception) {
-        null
-    }
+    }.getOrNull()
 }

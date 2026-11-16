@@ -5,7 +5,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    app:cardCornerRadius="16dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+    app:cardCornerRadius="18dp"
     app:strokeColor="?attr/colorPrimary"
     app:strokeWidth="0dp">
 
@@ -13,12 +14,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <ImageView
+        <com.varadha.autowallpaper.FramedImageView
             android:id="@+id/thumb"
             android:layout_width="match_parent"
-            android:layout_height="180dp"
-            android:background="?attr/colorSurfaceContainerHighest"
-            android:scaleType="centerCrop" />
+            android:layout_height="200dp" />
 
         <TextView
             android:id="@+id/nowBadge"

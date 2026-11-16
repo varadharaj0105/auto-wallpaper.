@@ -2,4 +2,5 @@
 <resources>
     <color name="icon_bg">#2E2A6B</color>
     <color name="seed">#5B4FCF</color>
+    <color name="seed_light">#C5C0FF</color>
 </resources>

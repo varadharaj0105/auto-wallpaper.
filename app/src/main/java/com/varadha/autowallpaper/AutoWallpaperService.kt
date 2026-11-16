@@ -1,35 +1,52 @@
 package com.varadha.autowallpaper
 
+import android.app.WallpaperColors
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
- * Live wallpaper that shows the next picked image every time the screen is locked.
- * It is driven by the system's wallpaper host, so there is no background service
- * and nothing to exempt from battery optimization.
+ * The live wallpaper. Android keeps it running as part of the Home/lock screen, so there is
+ * no background service and nothing to exempt from battery optimisation.
+ *
+ * Screen off  -> pick the next photo and draw it while the display is dark.
+ * Screen on   -> optional short "wake-up" zoom (about half a second), then idle again.
  */
 class AutoWallpaperService : WallpaperService() {
 
     override fun onCreateEngine(): Engine = AutoEngine()
 
-    inner class AutoEngine : Engine() {
+    inner class AutoEngine : Engine(), SharedPreferences.OnSharedPreferenceChangeListener {
+        private val ctx: Context get() = this@AutoWallpaperService
+        private val handler = Handler(Looper.getMainLooper())
+
         private var surfaceW = 0
         private var surfaceH = 0
         private var bitmap: Bitmap? = null
-        private var loadedUri: Uri? = null
+        private var photo: Photo? = null
+        private var loadedKey: String? = null
         private var registered = false
+        private var visible = false
+        private var lockedSinceShown = false
+        private var animStart = 0L
+
         private val matrix = Matrix()
         private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -38,13 +55,29 @@ class AutoWallpaperService : WallpaperService() {
             textSize = 42f
         }
 
-        // Screen locked -> move to the next image and prepare it while the display is off,
-        // so the new wallpaper is already there when the screen comes back on.
-        private val screenOffReceiver = object : BroadcastReceiver() {
+        private val screenReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                Store.onLock(this@AutoWallpaperService)
-                ensureLoaded()
-                draw()
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> {
+                        lockedSinceShown = true
+                        handler.removeCallbacks(anim)
+                        animStart = 0L
+                        Store.onLock(ctx)
+                        reload()
+                        // Draw the first animation frame now, so waking up has no jump.
+                        draw(if (Store.animate(ctx)) START_ZOOM else 1f)
+                    }
+                    Intent.ACTION_SCREEN_ON -> maybeAnimate()
+                }
+            }
+        }
+
+        private val anim = object : Runnable {
+            override fun run() {
+                val t = ((SystemClock.uptimeMillis() - animStart) / ANIM_MS.toFloat()).coerceIn(0f, 1f)
+                val eased = 1f - (1f - t).pow(3)
+                draw(1f + (START_ZOOM - 1f) * (1f - eased))
+                if (t < 1f && visible) handler.postDelayed(this, 16) else animStart = 0L
             }
         }
 
@@ -52,76 +85,117 @@ class AutoWallpaperService : WallpaperService() {
             super.onCreate(surfaceHolder)
             setOffsetNotificationsEnabled(false)
             if (!isPreview) {
-                registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
+                registerReceiver(screenReceiver, IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
+                })
                 registered = true
             }
+            Store.prefs(ctx).registerOnSharedPreferenceChangeListener(this)
         }
 
         override fun onDestroy() {
-            if (registered) {
-                runCatching { unregisterReceiver(screenOffReceiver) }
-                registered = false
-            }
+            handler.removeCallbacks(anim)
+            if (registered) runCatching { unregisterReceiver(screenReceiver) }
+            registered = false
+            Store.prefs(ctx).unregisterOnSharedPreferenceChangeListener(this)
             bitmap = null
             super.onDestroy()
+        }
+
+        /** Photo picked in the app, framing saved, Quick Settings tile... show it right away. */
+        override fun onSharedPreferenceChanged(sp: SharedPreferences?, key: String?) {
+            if (key == Store.K_LOCKS) return
+            reload()
+            if (key == Store.K_COLORS) notifyColorsChanged()
+            if (animStart == 0L) draw(1f)
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
             surfaceW = width
             surfaceH = height
-            loadedUri = null // size changed -> decode again at the new size
-            ensureLoaded()
-            draw()
+            loadedKey = null
+            reload()
+            draw(1f)
         }
 
         override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
             super.onSurfaceRedrawNeeded(holder)
-            draw()
+            if (animStart == 0L) draw(1f)
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
-            // Also picks up a freshly chosen set of images from the app.
+            this.visible = visible
             if (visible) {
-                ensureLoaded()
-                draw()
+                reload()
+                if (!maybeAnimate()) draw(1f)
+            } else {
+                handler.removeCallbacks(anim)
+                animStart = 0L
             }
         }
 
-        private fun ensureLoaded() {
-            val uris = Store.uris(this@AutoWallpaperService)
-            if (uris.isEmpty() || surfaceW == 0 || surfaceH == 0) {
+        /** Plays the wake-up zoom once after a lock, if turned on. */
+        private fun maybeAnimate(): Boolean {
+            if (!lockedSinceShown) return false
+            lockedSinceShown = false
+            if (!Store.animate(ctx) || bitmap == null) {
+                draw(1f)
+                return false
+            }
+            handler.removeCallbacks(anim)
+            animStart = SystemClock.uptimeMillis()
+            handler.post(anim)
+            return true
+        }
+
+        override fun onComputeColors(): WallpaperColors? {
+            if (!Store.matchColors(ctx)) return null
+            return bitmap?.let { runCatching { WallpaperColors.fromBitmap(it) }.getOrNull() }
+        }
+
+        private fun reload() {
+            val p = Store.current(ctx)
+            if (p == null || surfaceW == 0 || surfaceH == 0) {
+                val had = bitmap != null
                 bitmap = null
-                loadedUri = null
+                photo = null
+                loadedKey = null
+                if (had) notifyColorsChanged()
                 return
             }
-            val uri = uris[Store.index(this@AutoWallpaperService) % uris.size]
-            if (uri == loadedUri && bitmap != null) return
-            bitmap = decode(uri)
-            loadedUri = uri
+            photo = p // framing can change without a new decode
+            val key = "${p.id}|${surfaceW}x$surfaceH|${(p.zoom * 2).roundToInt()}"
+            if (key == loadedKey && bitmap != null) return
+            bitmap = decode(p)
+            loadedKey = key
+            notifyColorsChanged()
         }
 
-        /** Decodes at roughly screen size (keeps memory low) and respects photo rotation. */
-        private fun decode(uri: Uri): Bitmap? = try {
-            val source = ImageDecoder.createSource(contentResolver, uri)
-            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                val scale = max(
-                    surfaceW.toFloat() / info.size.width,
-                    surfaceH.toFloat() / info.size.height
-                )
-                if (scale < 1f) {
-                    decoder.setTargetSize(
-                        max(1, (info.size.width * scale).roundToInt()),
-                        max(1, (info.size.height * scale).roundToInt())
+        /** Decodes only as many pixels as the screen (and zoom) needs. */
+        private fun decode(p: Photo): Bitmap? = try {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(p.file(ctx))) { d, info, _ ->
+                d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val w = info.size.width
+                val h = info.size.height
+                val need = min(1f, max(surfaceW.toFloat() / w, surfaceH.toFloat() / h) * max(1f, p.zoom))
+                if (need < 1f) {
+                    d.setTargetSize(
+                        (w * need).roundToInt().coerceAtLeast(1),
+                        (h * need).roundToInt().coerceAtLeast(1)
                     )
                 }
             }
         } catch (e: Exception) {
-            null // image deleted or permission lost: show the hint instead of crashing
+            null
         }
 
-        private fun draw() {
+        private fun isNight() =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+
+        private fun draw(extraZoom: Float) {
             val holder = surfaceHolder
             val canvas = try {
                 holder.lockHardwareCanvas()
@@ -130,22 +204,19 @@ class AutoWallpaperService : WallpaperService() {
             } ?: return
             try {
                 canvas.drawColor(Color.BLACK)
-                val bmp = bitmap
-                if (bmp != null) {
-                    // Center-crop to fill the screen.
-                    val scale = max(
-                        surfaceW.toFloat() / bmp.width,
-                        surfaceH.toFloat() / bmp.height
+                val b = bitmap
+                val p = photo
+                if (b != null && p != null) {
+                    Framing.matrix(
+                        matrix, b.width, b.height,
+                        surfaceW.toFloat(), surfaceH.toFloat(),
+                        p.zoom, p.cx, p.cy, extraZoom
                     )
-                    matrix.setScale(scale, scale)
-                    matrix.postTranslate(
-                        (surfaceW - bmp.width * scale) / 2f,
-                        (surfaceH - bmp.height * scale) / 2f
-                    )
-                    canvas.drawBitmap(bmp, matrix, paint)
+                    canvas.drawBitmap(b, matrix, paint)
+                    if (Store.dim(ctx) && isNight()) canvas.drawColor(DIM_COLOR)
                 } else {
                     canvas.drawText(
-                        "Open Auto Wallpaper and pick images",
+                        "Open Auto Wallpaper and add photos",
                         surfaceW / 2f, surfaceH / 2f, textPaint
                     )
                 }
@@ -153,5 +224,11 @@ class AutoWallpaperService : WallpaperService() {
                 holder.unlockCanvasAndPost(canvas)
             }
         }
+    }
+
+    companion object {
+        private const val ANIM_MS = 550L
+        private const val START_ZOOM = 1.08f
+        private const val DIM_COLOR = 0x66000000
     }
 }

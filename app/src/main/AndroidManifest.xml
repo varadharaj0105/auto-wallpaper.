@@ -23,6 +23,23 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AdjustActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AutoWallpaper.Adjust" />
+
+        <service
+            android:name=".NextTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_skip_next"
+            android:label="Next wallpaper"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".AutoWallpaperService"
             android:exported="true"
