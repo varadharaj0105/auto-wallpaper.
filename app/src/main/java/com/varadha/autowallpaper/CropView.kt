@@ -91,6 +91,7 @@ class CropView @JvmOverloads constructor(
 
     // ---------------- position ----------------
 
+    /** "Fit whole photo" zoom for a single photo on this screen. */
     fun minZoom(): Float {
         val b = bitmap ?: return 1f
         if (width == 0 || height == 0) return 1f
@@ -98,19 +99,30 @@ class CropView @JvmOverloads constructor(
         return Framing.minZoom(region.width(), region.height(), width.toFloat(), height.toFloat())
     }
 
-    /** True when the whole photo is visible. */
-    val isFit: Boolean get() = abs(photo.zoom - minZoom()) < 0.01f
+    /** Area one copy is drawn into: the whole screen, or one cell of a 2x/3x layout. */
+    private fun viewport(): Pair<Float, Float> =
+        Framing.cellSize(width.toFloat(), height.toFloat(), photo.rows)
+
+    /** Same photo stacked [n] times (1 = single). */
+    fun setRows(n: Int) {
+        photo = photo.copy(rows = n, zoom = 1f, cx = 0.5f, cy = 0.5f)
+        changed()
+    }
+
+    /** True when the whole photo is visible (single-photo mode). */
+    val isFit: Boolean get() = photo.rows == 1 && abs(photo.zoom - minZoom()) < 0.01f
 
     /** True when the photo already has the same shape as the screen (Fit = Fill). */
     val fitEqualsFill: Boolean get() = minZoom() > 0.99f
 
     fun fit() {
+        photo = photo.copy(rows = 1)
         photo = photo.copy(zoom = minZoom(), cx = 0.5f, cy = 0.5f)
         changed()
     }
 
     fun fill() {
-        photo = photo.copy(zoom = 1f)
+        photo = photo.copy(rows = 1, zoom = 1f)
         changed()
     }
 
@@ -166,9 +178,10 @@ class CropView @JvmOverloads constructor(
         val b = bitmap ?: return
         if (width == 0 || height == 0) return
         Framing.region(b.width, b.height, photo, region)
-        val vw = width.toFloat()
-        val vh = height.toFloat()
-        val zoom = photo.zoom.coerceIn(Framing.minZoom(region.width(), region.height(), vw, vh), MAX_ZOOM)
+        val (vw, vh) = viewport()
+        // In a 2x/3x layout each copy always fills its cell; single photos can go down to "fit".
+        val min = if (photo.rows > 1) 1f else Framing.minZoom(region.width(), region.height(), vw, vh)
+        val zoom = photo.zoom.coerceIn(min, MAX_ZOOM)
         val s = Framing.cover(region.width(), region.height(), vw, vh) * zoom
         photo = photo.copy(
             zoom = zoom,
@@ -194,7 +207,8 @@ class CropView @JvmOverloads constructor(
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
             val b = bitmap ?: return false
             Framing.region(b.width, b.height, photo, region)
-            val s = Framing.cover(region.width(), region.height(), width.toFloat(), height.toFloat()) * photo.zoom
+            val (vw, vh) = viewport()
+            val s = Framing.cover(region.width(), region.height(), vw, vh) * photo.zoom
             photo = photo.copy(
                 cx = photo.cx + distanceX / (s * region.width()),
                 cy = photo.cy + distanceY / (s * region.height())
@@ -204,7 +218,10 @@ class CropView @JvmOverloads constructor(
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (isFit) fill() else fit()
+            if (photo.rows > 1) {
+                photo = photo.copy(zoom = if (photo.zoom > 1.05f) 1f else 2f)
+                changed()
+            } else if (isFit) fill() else fit()
             return true
         }
     })

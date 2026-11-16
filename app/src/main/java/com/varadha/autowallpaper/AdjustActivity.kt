@@ -68,6 +68,8 @@ class AdjustActivity : AppCompatActivity() {
             when (ids.firstOrNull()) {
                 R.id.chipFit -> b.crop.fit()
                 R.id.chipFill -> b.crop.fill()
+                R.id.chipRows2 -> b.crop.setRows(2)
+                R.id.chipRows3 -> b.crop.setRows(3)
             }
         }
 
@@ -150,13 +152,17 @@ class AdjustActivity : AppCompatActivity() {
         if (b.crop.bitmap == null) return
         syncing = true
         val same = b.crop.fitEqualsFill
+        val rows = b.crop.photo.rows
         b.chipFit.isEnabled = !same
         when {
+            rows == 2 -> b.chipsSize.check(R.id.chipRows2)
+            rows == 3 -> b.chipsSize.check(R.id.chipRows3)
             b.crop.isFit && !same -> b.chipsSize.check(R.id.chipFit)
             b.crop.photo.zoom in 0.99f..1.01f -> b.chipsSize.check(R.id.chipFill)
             else -> b.chipsSize.clearCheck()
         }
         b.sizeHint.text = when {
+            rows > 1 -> "Same photo $rows times, like a collage · drag to reposition"
             same -> "This photo already matches your screen shape"
             b.crop.isFit -> "Whole photo visible"
             b.crop.photo.zoom < 1f -> "Custom size"

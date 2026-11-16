@@ -64,6 +64,12 @@
         android:text="Fit whole photo" />
 
     <TextView
+        android:id="@+id/actionLayout"
+        style="@style/SheetAction"
+        android:drawableStart="@drawable/ic_view_agenda"
+        android:text="Layout: repeat 2× or 3×" />
+
+    <TextView
         android:id="@+id/actionAdjust"
         style="@style/SheetAction"
         android:drawableStart="@drawable/ic_crop"

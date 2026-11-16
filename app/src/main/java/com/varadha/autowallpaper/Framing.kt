@@ -43,6 +43,19 @@ object Framing {
         return out
     }
 
+    /** Gap between copies in a 2x/3x layout. */
+    fun gap(vw: Float, vh: Float) = min(vw, vh) * 0.018f
+
+    /** Corner radius of each copy in a 2x/3x layout. */
+    fun radius(vw: Float, vh: Float) = min(vw, vh) * 0.04f
+
+    /** Size of one cell when the photo is stacked [rows] times. */
+    fun cellSize(vw: Float, vh: Float, rows: Int): Pair<Float, Float> {
+        if (rows <= 1) return vw to vh
+        val g = gap(vw, vh)
+        return (vw - 2f * g) to ((vh - g * (rows + 1)) / rows)
+    }
+
     /** Keeps a centre (0..1) so no empty edge appears on a side the photo is big enough to cover. */
     fun clampFraction(f: Float, regionSize: Float, viewSize: Float, scale: Float): Float =
         clamp(f * regionSize, viewSize / 2f / scale, regionSize) / regionSize

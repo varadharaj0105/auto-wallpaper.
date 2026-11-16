@@ -25,7 +25,9 @@ data class Photo(
     val ct: Float = 0f,
     val cr: Float = 1f,
     val cb: Float = 1f,
-    val bg: Int = BG_BLUR
+    val bg: Int = BG_BLUR,
+    /** 1 = single photo, 2 or 3 = the same photo stacked like a collage. */
+    val rows: Int = 1
 ) {
     fun file(c: Context) = File(Store.dir(c), "$id.jpg")
 
@@ -72,7 +74,8 @@ object Store {
                     ct = o.optDouble("ct", 0.0).toFloat(),
                     cr = o.optDouble("cr", 1.0).toFloat(),
                     cb = o.optDouble("cb", 1.0).toFloat(),
-                    bg = o.optInt("bg", Photo.BG_BLUR)
+                    bg = o.optInt("bg", Photo.BG_BLUR),
+                    rows = o.optInt("rows", 1).coerceIn(1, 3)
                 )
             }
         } catch (e: Exception) {
@@ -94,6 +97,7 @@ object Store {
                     .put("cr", it.cr.toDouble())
                     .put("cb", it.cb.toDouble())
                     .put("bg", it.bg)
+                    .put("rows", it.rows)
             )
         }
         prefs(c).edit().putString(K_PHOTOS, a.toString()).apply()

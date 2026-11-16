@@ -109,21 +109,20 @@
             android:layout_marginTop="12dp"
             android:orientation="vertical">
 
-            <LinearLayout
+            <TextView
+                style="@style/EditorLabel"
+                android:text="Size" />
+
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/EditorLabel"
-                    android:text="Size" />
+                android:scrollbars="none">
 
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/chipsSize"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    app:singleLine="true"
                     app:singleSelection="true">
 
                     <com.google.android.material.chip.Chip
@@ -131,42 +130,56 @@
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Fill screen" />
+                        android:text="Fill" />
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFit"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Fit whole photo" />
+                        android:text="Fit" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRows2"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="2× layout" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRows3"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="3× layout" />
                 </com.google.android.material.chip.ChipGroup>
-            </LinearLayout>
+            </HorizontalScrollView>
 
             <TextView
                 android:id="@+id/sizeHint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="96dp"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="#B3FFFFFF" />
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/bgLabel"
+                style="@style/EditorLabel"
+                android:layout_marginTop="8dp"
+                android:text="Background" />
+
+            <HorizontalScrollView
+                android:id="@+id/bgScroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/EditorLabel"
-                    android:text="Empty space" />
+                android:scrollbars="none">
 
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/chipsBg"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     app:selectionRequired="true"
+                    app:singleLine="true"
                     app:singleSelection="true">
 
                     <com.google.android.material.chip.Chip
@@ -190,7 +203,7 @@
                         android:layout_height="wrap_content"
                         android:text="Black" />
                 </com.google.android.material.chip.ChipGroup>
-            </LinearLayout>
+            </HorizontalScrollView>
         </LinearLayout>
 
         <!-- Crop options -->
@@ -199,8 +212,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:visibility="gone">
 
             <TextView
@@ -209,9 +221,8 @@
 
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/chipsAspect"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 app:selectionRequired="true"
                 app:singleSelection="true">
 

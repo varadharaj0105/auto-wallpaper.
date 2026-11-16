@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity() {
             val (sw, sh) = Importer.screenSize(this)
             Framing.minZoom(rw, rh, sw, sh)
         } else 1f
-        val isFit = kotlin.math.abs(p.zoom - fitZoom) < 0.01f
+        val isFit = p.rows == 1 && kotlin.math.abs(p.zoom - fitZoom) < 0.01f
         if (fitZoom > 0.99f) {
             sb.actionFit.visibility = View.GONE // already the screen's shape
         } else {
@@ -166,9 +166,27 @@ class MainActivity : AppCompatActivity() {
         }
         sb.actionFit.setOnClickListener {
             sheet.dismiss()
-            Store.update(this, if (isFit) p.copy(zoom = 1f) else p.copy(zoom = fitZoom, cx = 0.5f, cy = 0.5f))
+            Store.update(
+                this,
+                if (isFit) p.copy(rows = 1, zoom = 1f)
+                else p.copy(rows = 1, zoom = fitZoom, cx = 0.5f, cy = 0.5f)
+            )
             render()
             snack(if (isFit) "Fills the screen" else "Whole photo visible")
+        }
+        sb.actionLayout.setOnClickListener {
+            sheet.dismiss()
+            val options = arrayOf("Single photo", "2× layout (photo twice)", "3× layout (photo three times)")
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Layout")
+                .setSingleChoiceItems(options, (p.rows - 1).coerceIn(0, 2)) { d, which ->
+                    d.dismiss()
+                    Store.update(this, p.copy(rows = which + 1, zoom = 1f, cx = 0.5f, cy = 0.5f))
+                    render()
+                    snack(if (which == 0) "Single photo" else "${which + 1}× layout")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
         sb.actionAdjust.setOnClickListener {
             sheet.dismiss()

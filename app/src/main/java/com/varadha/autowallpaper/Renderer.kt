@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import kotlin.math.max
@@ -20,6 +21,8 @@ class Renderer {
     private val bgM = Matrix()
     private val region = RectF()
     private val dst = RectF()
+    private val cell = RectF()
+    private val path = Path()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
     private var bgKey: String? = null
@@ -27,6 +30,10 @@ class Renderer {
     private var bgColor = Color.BLACK
 
     fun draw(c: Canvas, b: Bitmap, p: Photo, vw: Float, vh: Float, extra: Float = 1f) {
+        if (p.rows > 1) {
+            drawLayout(c, b, p, vw, vh, extra)
+            return
+        }
         Framing.region(b.width, b.height, p, region)
         Framing.matrix(m, region, vw, vh, p.zoom, p.cx, p.cy, extra)
         dst.set(region)
@@ -37,6 +44,26 @@ class Renderer {
         c.clipRect(dst)
         c.drawBitmap(b, m, paint)
         c.restoreToCount(save)
+    }
+
+    /** The same photo 2 or 3 times, stacked with small rounded gaps, like a collage. */
+    private fun drawLayout(c: Canvas, b: Bitmap, p: Photo, vw: Float, vh: Float, extra: Float) {
+        Framing.region(b.width, b.height, p, region)
+        background(c, b, p, vw, vh) // shows through the gaps
+        val g = Framing.gap(vw, vh)
+        val rad = Framing.radius(vw, vh)
+        val (cw, ch) = Framing.cellSize(vw, vh, p.rows)
+        for (i in 0 until p.rows) {
+            cell.set(g, g + i * (ch + g), g + cw, g + i * (ch + g) + ch)
+            Framing.matrix(m, region, cw, ch, max(1f, p.zoom), p.cx, p.cy, extra)
+            m.postTranslate(cell.left, cell.top)
+            path.reset()
+            path.addRoundRect(cell, rad, rad, Path.Direction.CW)
+            val save = c.save()
+            c.clipPath(path)
+            c.drawBitmap(b, m, paint)
+            c.restoreToCount(save)
+        }
     }
 
     private fun background(c: Canvas, b: Bitmap, p: Photo, vw: Float, vh: Float) {
