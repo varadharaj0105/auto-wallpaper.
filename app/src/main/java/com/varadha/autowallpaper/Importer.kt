@@ -24,7 +24,14 @@ object Importer {
     private const val MAX_SIDE = 2560
 
     /** Slow (decodes and saves images): call off the main thread. */
-    fun import(c: Context, uris: List<Uri>): List<Photo> = uris.mapNotNull { uri ->
+    fun import(c: Context, uris: List<Uri>): List<Photo> = uris.mapNotNull { importOne(c, it) }
+
+    /**
+     * Copies one photo in. New photos start as: whole photo (if "Fit new photos" is on),
+     * else framed around faces (if "Auto-frame faces" is on), else filling the screen.
+     * [mid] is the gallery id for photos that come from a synced album.
+     */
+    fun importOne(c: Context, uri: Uri, mid: Long = 0L): Photo? =
         runCatching {
             val bmp = ImageDecoder.decodeBitmap(ImageDecoder.createSource(c.contentResolver, uri)) { d, info, _ ->
                 d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
@@ -42,11 +49,18 @@ object Importer {
             FileOutputStream(File(Store.dir(c), "$id.jpg")).use {
                 bmp.compress(Bitmap.CompressFormat.JPEG, 92, it)
             }
-            val zoom = if (Store.fitNew(c)) fitZoom(c, bmp.width, bmp.height) else 1f
+            var photo = Photo(id, mid = mid)
+            if (Store.fitNew(c)) {
+                photo = photo.copy(zoom = fitZoom(c, bmp.width, bmp.height))
+            } else if (Store.autoFace(c)) {
+                Faces.find(bmp)?.let { faces ->
+                    val (sw, sh) = screenSize(c)
+                    photo = Faces.frame(photo, bmp.width, bmp.height, faces, sw, sh)
+                }
+            }
             bmp.recycle()
-            Photo(id, zoom = zoom)
+            photo
         }.getOrNull()
-    }
 
     /** Zoom that shows the whole photo on this phone's screen. */
     fun fitZoom(c: Context, imageW: Int, imageH: Int): Float {

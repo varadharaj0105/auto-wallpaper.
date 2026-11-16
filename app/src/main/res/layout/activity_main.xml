@@ -340,6 +340,20 @@
                     app:icon="@drawable/ic_add" />
             </LinearLayout>
 
+            <!-- Album sync -->
+            <com.google.android.material.card.MaterialCardView
+                style="?attr/materialCardViewFilledStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="?attr/colorSecondaryContainer"
+                app:cardCornerRadius="24dp">
+
+                <include
+                    android:id="@+id/rowAlbum"
+                    layout="@layout/row_switch" />
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Settings -->
             <TextView
                 android:layout_width="wrap_content"
@@ -418,6 +432,14 @@
 
                     <include
                         android:id="@+id/rowFitNew"
+                        layout="@layout/row_switch" />
+
+                    <include
+                        android:id="@+id/rowAutoFace"
+                        layout="@layout/row_switch" />
+
+                    <include
+                        android:id="@+id/rowFrameAll"
                         layout="@layout/row_switch" />
 
                     <include

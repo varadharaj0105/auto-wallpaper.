@@ -61,6 +61,7 @@ class AutoWallpaperService : WallpaperService() {
                         handler.removeCallbacks(anim)
                         animStart = 0L
                         Store.onLock(ctx)
+                        AlbumSync.maybeSyncOnLock(ctx)
                         reload()
                         // Draw the first animation frame now, so waking up has no jump.
                         draw(if (Store.animate(ctx)) START_ZOOM else 1f)

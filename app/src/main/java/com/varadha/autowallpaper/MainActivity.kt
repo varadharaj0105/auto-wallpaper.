@@ -40,6 +40,13 @@ class MainActivity : AppCompatActivity() {
             render()
         }
 
+    /** Gallery permission, only asked when you turn on album sync. */
+    private val askPhotos =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) chooseAlbum()
+            else snack("Album sync needs access to your photos. Choose “Allow all”.")
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this) // Material You colours
         super.onCreate(savedInstanceState)
@@ -70,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupSettings()
+        b.rowAlbum.root.setOnClickListener { albumMenu() }
 
         b.versionText.text = "Auto Wallpaper · version 1.${Updater.currentBuild(this)}"
         setupUpdates()
@@ -90,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         render() // e.g. becomes "Active" after returning from the wallpaper picker
+        quietSync()
         // Came back from the "Install unknown apps" switch: carry on with the update.
         if (pendingUpdateAfterPermission && Updater.canInstall(this)) {
             pendingUpdateAfterPermission = false
@@ -100,6 +109,145 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         Updater.onInstallResult = null
         super.onDestroy()
+    }
+
+    // ---------------- album sync ----------------
+
+    private fun renderAlbum() {
+        val r = b.rowAlbum
+        r.icon.setImageResource(R.drawable.ic_folder_sync)
+        r.switchView.visibility = View.GONE
+        val name = Store.albumName(this)
+        if (name == null) {
+            r.title.text = "Sync an album"
+            r.subtitle.text = "Pick a gallery album. New photos in it join automatically."
+        } else {
+            val count = Store.photos(this).count { it.mid != 0L }
+            r.title.text = "Syncing “$name”"
+            r.subtitle.text = "$count photo${if (count == 1) "" else "s"} from this album · tap for options"
+        }
+    }
+
+    private fun albumMenu() {
+        val name = Store.albumName(this)
+        if (name == null) {
+            startAlbumPick()
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Album “$name”")
+            .setItems(arrayOf("Sync now", "Choose a different album", "Stop syncing")) { _, which ->
+                when (which) {
+                    0 -> runSync(loud = true)
+                    1 -> startAlbumPick()
+                    2 -> confirmStopAlbum()
+                }
+            }
+            .show()
+    }
+
+    private fun confirmStopAlbum() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Stop syncing?")
+            .setMessage("Keep the photos already added, or remove the ones that came from the album?")
+            .setNegativeButton("Keep photos") { _, _ ->
+                // They become normal photos.
+                Store.savePhotos(this, Store.photos(this).map { it.copy(mid = 0L) })
+                Store.stopAlbum(this)
+                render()
+            }
+            .setPositiveButton("Remove them") { _, _ ->
+                Store.photos(this).filter { it.mid != 0L }.forEach { Store.remove(this, it.id, fromSync = true) }
+                Store.stopAlbum(this)
+                render()
+            }
+            .show()
+    }
+
+    private fun startAlbumPick() {
+        if (AlbumSync.hasPermission(this)) chooseAlbum() else askPhotos.launch(AlbumSync.permission)
+    }
+
+    private fun chooseAlbum() {
+        Thread {
+            val albums = AlbumSync.albums(applicationContext)
+            runOnUiThread {
+                if (albums.isEmpty()) {
+                    snack("No albums found")
+                    return@runOnUiThread
+                }
+                val labels = albums.map { "${it.name}  ·  ${it.count}" }.toTypedArray()
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Pick an album")
+                    .setItems(labels) { _, which ->
+                        val a = albums[which]
+                        if (Store.albumId(this) != null && Store.albumId(this) != a.id) {
+                            // Switching albums: photos from the old one leave.
+                            Store.photos(this).filter { it.mid != 0L }
+                                .forEach { Store.remove(this, it.id, fromSync = true) }
+                        }
+                        Store.setAlbum(this, a.id, a.name)
+                        render()
+                        runSync(loud = true)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }.start()
+    }
+
+    private fun runSync(loud: Boolean) {
+        if (loud) {
+            setBusy(true)
+            snack("Syncing album… new photos appear as they're ready")
+        }
+        Thread {
+            val (added, removed) = AlbumSync.sync(applicationContext)
+            runOnUiThread {
+                if (loud) setBusy(false)
+                render()
+                if (loud || added + removed > 0) {
+                    snack(
+                        when {
+                            added == 0 && removed == 0 -> "Album is up to date"
+                            removed == 0 -> "$added new photo${if (added == 1) "" else "s"} from the album"
+                            added == 0 -> "$removed photo${if (removed == 1) "" else "s"} removed (deleted from album)"
+                            else -> "$added added, $removed removed"
+                        }
+                    )
+                }
+            }
+        }.start()
+    }
+
+    /** Light check every time the app opens. */
+    private fun quietSync() {
+        if (Store.albumId(this) != null && AlbumSync.hasPermission(this)) runSync(loud = false)
+    }
+
+    // ---------------- faces ----------------
+
+    private fun frameAllFaces() {
+        val photos = Store.photos(this).filter { it.rows == 1 }
+        if (photos.isEmpty()) return
+        setBusy(true)
+        snack("Finding faces in ${photos.size} photos…")
+        Thread {
+            var framed = 0
+            photos.forEach { p ->
+                Faces.autoFrame(applicationContext, p)?.let {
+                    // Keep anything changed meanwhile (favourite, background...), only move the framing.
+                    val latest = Store.photos(applicationContext).firstOrNull { x -> x.id == p.id } ?: return@let
+                    Store.update(applicationContext, latest.copy(zoom = it.zoom, cx = it.cx, cy = it.cy, rows = 1))
+                    framed++
+                }
+            }
+            runOnUiThread {
+                setBusy(false)
+                render()
+                snack(if (framed == 0) "No faces found" else "Framed $framed photo${if (framed == 1) "" else "s"} around faces")
+            }
+        }.start()
     }
 
     // ---------------- in-app updates ----------------
@@ -234,6 +382,32 @@ class MainActivity : AppCompatActivity() {
         sb.sheetTitle.text = "Photo ${position + 1}"
         sb.sheetSubtitle.text = if (isCurrent) "On your screen now" else "In your rotation"
         sb.actionShow.visibility = if (isCurrent) View.GONE else View.VISIBLE
+        if (p.mid != 0L) sb.sheetSubtitle.text = "${sb.sheetSubtitle.text} · from “${Store.albumName(this) ?: "album"}”"
+
+        sb.actionFav.text = if (p.fav) "Remove from favourites" else "Add to favourites"
+        sb.actionFav.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            if (p.fav) R.drawable.ic_favorite else R.drawable.ic_favorite_border, 0, 0, 0
+        )
+        sb.actionFav.setOnClickListener {
+            sheet.dismiss()
+            Store.update(this, p.copy(fav = !p.fav))
+            render()
+            snack(if (p.fav) "Removed from favourites" else "Favourite: shows up twice as often in shuffle")
+        }
+
+        sb.actionFace.setOnClickListener {
+            sheet.dismiss()
+            setBusy(true)
+            Thread {
+                val framed = Faces.autoFrame(applicationContext, p)
+                if (framed != null) Store.update(applicationContext, framed)
+                runOnUiThread {
+                    setBusy(false)
+                    render()
+                    snack(if (framed != null) "Framed around faces" else "No faces found in this photo")
+                }
+            }.start()
+        }
         sb.actionShow.setOnClickListener {
             sheet.dismiss()
             Store.setCurrent(this, p.id)
@@ -369,6 +543,22 @@ class MainActivity : AppCompatActivity() {
             "Show the whole photo instead of filling the screen", Store.fitNew(this)
         ) { Store.setFitNew(this, it) }
         row(
+            b.rowAutoFace, R.drawable.ic_face, "Auto-frame faces",
+            "New photos are placed so faces sit below the clock", Store.autoFace(this)
+        ) { Store.setAutoFace(this, it) }
+        b.rowFrameAll.icon.setImageResource(R.drawable.ic_auto_awesome)
+        b.rowFrameAll.title.text = "Frame all photos around faces"
+        b.rowFrameAll.subtitle.text = "Re-position every photo you already have"
+        b.rowFrameAll.switchView.visibility = View.GONE
+        b.rowFrameAll.root.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Frame all photos?")
+                .setMessage("Photos with faces get re-positioned so faces sit below the clock. Photos without faces stay as they are.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Frame all") { _, _ -> frameAllFaces() }
+                .show()
+        }
+        row(
             b.rowAnimate, R.drawable.ic_auto_awesome, "Wake-up animation",
             "Gentle zoom when you turn the screen on", Store.animate(this)
         ) { Store.setAnimate(this, it) }
@@ -411,6 +601,8 @@ class MainActivity : AppCompatActivity() {
         b.btnClear.visibility = if (empty) View.GONE else View.VISIBLE
         b.gridTitle.text = if (empty) "Your photos" else "Your photos · ${photos.size}"
         b.everyBlock.alpha = if (Store.paused(this)) 0.4f else 1f
+        b.rowShuffle.subtitle.text = "Every photo once before any repeats · favourites twice as often"
+        renderAlbum()
         renderHero()
     }
 

@@ -43,6 +43,8 @@ class WallAdapter(
         val isCurrent = p.id == currentId
         Thumbs.load(b.thumb, p, 320)
         b.nowBadge.visibility = if (isCurrent) View.VISIBLE else View.GONE
+        b.favBadge.visibility = if (p.fav) View.VISIBLE else View.GONE
+        b.albumBadge.visibility = if (p.mid != 0L) View.VISIBLE else View.GONE
         b.root.strokeWidth = if (isCurrent) (3 * b.root.resources.displayMetrics.density).toInt() else 0
         b.root.setOnClickListener {
             holder.bindingAdapterPosition.takeIf { it >= 0 }?.let(onTap)

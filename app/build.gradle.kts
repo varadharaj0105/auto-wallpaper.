@@ -52,4 +52,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
+    // On-device face detection (model via Google Play services, keeps the APK small)
+    implementation("com.google.android.gms:play-services-mlkit-face-detection:17.1.0")
 }

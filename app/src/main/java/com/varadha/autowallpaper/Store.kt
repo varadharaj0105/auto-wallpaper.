@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import kotlin.random.Random
 
 /**
  * One wallpaper photo. The image itself is a copy kept inside the app (so it keeps working
@@ -27,7 +26,11 @@ data class Photo(
     val cb: Float = 1f,
     val bg: Int = BG_BLUR,
     /** 1 = single photo, 2 or 3 = the same photo stacked like a collage. */
-    val rows: Int = 1
+    val rows: Int = 1,
+    /** Favourites come up twice as often in shuffle. */
+    val fav: Boolean = false,
+    /** Gallery id when the photo came from a synced album (0 = added by hand). */
+    val mid: Long = 0L
 ) {
     fun file(c: Context) = File(Store.dir(c), "$id.jpg")
 
@@ -38,12 +41,16 @@ data class Photo(
     }
 }
 
-/** Everything the app remembers. Both the app screen and the wallpaper read from here. */
+/**
+ * Everything the app remembers. The app screen, the wallpaper and album sync all read and write
+ * here, so changes are @Synchronized to avoid two of them overwriting each other.
+ */
 object Store {
     const val PREFS = "auto_wallpaper"
     const val K_PHOTOS = "photos"
     const val K_CURRENT = "current"
     const val K_SHUFFLE = "shuffle"
+    const val K_BAG = "shuffle_bag"
     const val K_EVERY = "every"
     const val K_LOCKS = "locks"
     const val K_PAUSED = "paused"
@@ -51,6 +58,11 @@ object Store {
     const val K_DIM = "dim"
     const val K_COLORS = "match_colors"
     const val K_FIT_NEW = "fit_new"
+    const val K_AUTO_FACE = "auto_face"
+    const val K_ALBUM_ID = "album_id"
+    const val K_ALBUM_NAME = "album_name"
+    const val K_ALBUM_SYNCED = "album_synced_at"
+    const val K_EXCLUDED = "album_excluded"
 
     fun prefs(c: Context): SharedPreferences =
         c.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -75,7 +87,9 @@ object Store {
                     cr = o.optDouble("cr", 1.0).toFloat(),
                     cb = o.optDouble("cb", 1.0).toFloat(),
                     bg = o.optInt("bg", Photo.BG_BLUR),
-                    rows = o.optInt("rows", 1).coerceIn(1, 3)
+                    rows = o.optInt("rows", 1).coerceIn(1, 3),
+                    fav = o.optBoolean("fav", false),
+                    mid = o.optLong("mid", 0L)
                 )
             }
         } catch (e: Exception) {
@@ -83,6 +97,7 @@ object Store {
         }
     }
 
+    @Synchronized
     fun savePhotos(c: Context, list: List<Photo>) {
         val a = JSONArray()
         list.forEach {
@@ -98,6 +113,8 @@ object Store {
                     .put("cb", it.cb.toDouble())
                     .put("bg", it.bg)
                     .put("rows", it.rows)
+                    .put("fav", it.fav)
+                    .put("mid", it.mid)
             )
         }
         prefs(c).edit().putString(K_PHOTOS, a.toString()).apply()
@@ -118,30 +135,43 @@ object Store {
         prefs(c).edit().putString(K_CURRENT, id).putInt(K_LOCKS, 0).apply()
     }
 
-    fun addAll(c: Context, new: List<Photo>) = savePhotos(c, photos(c) + new)
+    @Synchronized
+    fun addAll(c: Context, new: List<Photo>) {
+        if (new.isNotEmpty()) savePhotos(c, photos(c) + new)
+    }
 
+    @Synchronized
     fun update(c: Context, p: Photo) = savePhotos(c, photos(c).map { if (it.id == p.id) p else it })
 
-    fun remove(c: Context, id: String) {
+    @Synchronized
+    fun remove(c: Context, id: String, fromSync: Boolean = false) {
         val list = photos(c)
         val pos = list.indexOfFirst { it.id == id }
         if (pos < 0) return
+        val removed = list[pos]
         val wasCurrent = current(c)?.id == id
         val rest = list.filterNot { it.id == id }
         savePhotos(c, rest)
         if (wasCurrent && rest.isNotEmpty()) setCurrent(c, rest[pos % rest.size].id)
         File(dir(c), "$id.jpg").delete()
+        // Removed by hand from a synced album: don't bring it back on the next sync.
+        if (!fromSync && removed.mid != 0L) {
+            prefs(c).edit().putStringSet(K_EXCLUDED, excluded(c) + removed.mid.toString()).apply()
+        }
     }
 
+    @Synchronized
     fun clear(c: Context) {
         photos(c).forEach { File(dir(c), "${it.id}.jpg").delete() }
         savePhotos(c, emptyList())
+        stopAlbum(c)
     }
 
     // ---- options ----
 
     fun shuffle(c: Context) = prefs(c).getBoolean(K_SHUFFLE, false)
-    fun setShuffle(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_SHUFFLE, on).apply()
+    fun setShuffle(c: Context, on: Boolean) =
+        prefs(c).edit().putBoolean(K_SHUFFLE, on).remove(K_BAG).apply()
 
     fun paused(c: Context) = prefs(c).getBoolean(K_PAUSED, false)
     fun setPaused(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_PAUSED, on).apply()
@@ -155,6 +185,9 @@ object Store {
     fun fitNew(c: Context) = prefs(c).getBoolean(K_FIT_NEW, false)
     fun setFitNew(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_FIT_NEW, on).apply()
 
+    fun autoFace(c: Context) = prefs(c).getBoolean(K_AUTO_FACE, true)
+    fun setAutoFace(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_AUTO_FACE, on).apply()
+
     fun matchColors(c: Context) = prefs(c).getBoolean(K_COLORS, false)
     fun setMatchColors(c: Context, on: Boolean) = prefs(c).edit().putBoolean(K_COLORS, on).apply()
 
@@ -162,9 +195,36 @@ object Store {
     fun every(c: Context) = prefs(c).getInt(K_EVERY, 1).coerceAtLeast(1)
     fun setEvery(c: Context, n: Int) = prefs(c).edit().putInt(K_EVERY, n).putInt(K_LOCKS, 0).apply()
 
+    // ---- album sync ----
+
+    fun albumId(c: Context): String? = prefs(c).getString(K_ALBUM_ID, null)
+    fun albumName(c: Context): String? = prefs(c).getString(K_ALBUM_NAME, null)
+    fun albumSyncedAt(c: Context) = prefs(c).getLong(K_ALBUM_SYNCED, 0L)
+    fun setAlbumSyncedAt(c: Context, t: Long) = prefs(c).edit().putLong(K_ALBUM_SYNCED, t).apply()
+    fun excluded(c: Context): Set<String> = prefs(c).getStringSet(K_EXCLUDED, emptySet()).orEmpty()
+
+    fun setAlbum(c: Context, id: String, name: String) {
+        prefs(c).edit()
+            .putString(K_ALBUM_ID, id)
+            .putString(K_ALBUM_NAME, name)
+            .putLong(K_ALBUM_SYNCED, 0L)
+            .remove(K_EXCLUDED)
+            .apply()
+    }
+
+    fun stopAlbum(c: Context) {
+        prefs(c).edit()
+            .remove(K_ALBUM_ID)
+            .remove(K_ALBUM_NAME)
+            .remove(K_ALBUM_SYNCED)
+            .remove(K_EXCLUDED)
+            .apply()
+    }
+
     // ---- rotation ----
 
     /** Called by the wallpaper each time the screen locks. */
+    @Synchronized
     fun onLock(c: Context) {
         if (paused(c)) return
         val locks = prefs(c).getInt(K_LOCKS, 0) + 1
@@ -172,19 +232,43 @@ object Store {
         else prefs(c).edit().putInt(K_LOCKS, locks).apply()
     }
 
-    /** Next photo, or a random different one when shuffle is on. */
+    /**
+     * Next photo. With shuffle on it works like a deck of cards: every photo comes up once
+     * before any repeats, favourites are in the deck twice, and never the same photo twice in a row.
+     */
+    @Synchronized
     fun advance(c: Context) {
         val list = photos(c)
-        val n = list.size
-        if (n <= 1) return
-        val cur = currentPos(c).coerceAtLeast(0)
-        val next = if (shuffle(c)) {
-            var r = Random.nextInt(n - 1)
-            if (r >= cur) r++ // never the same photo twice in a row
-            r
-        } else {
-            (cur + 1) % n
+        if (list.size <= 1) return
+        val curId = current(c)?.id
+        if (!shuffle(c)) {
+            val cur = list.indexOfFirst { it.id == curId }.coerceAtLeast(0)
+            setCurrent(c, list[(cur + 1) % list.size].id)
+            return
         }
-        setCurrent(c, list[next].id)
+        val ids = list.map { it.id }.toSet()
+        var bag = prefs(c).getString(K_BAG, "").orEmpty()
+            .split(",")
+            .filter { it in ids && it != curId }
+            .toMutableList()
+        if (bag.isEmpty()) bag = newDeck(list, curId)
+        val next = bag.removeAt(0)
+        prefs(c).edit().putString(K_BAG, bag.joinToString(",")).apply()
+        setCurrent(c, next)
+    }
+
+    private fun newDeck(list: List<Photo>, curId: String?): MutableList<String> {
+        val deck = list.flatMap { if (it.fav) listOf(it.id, it.id) else listOf(it.id) }
+            .shuffled()
+            .toMutableList()
+        // Keep copies of a favourite apart, and don't start with what's on screen now.
+        for (i in deck.indices) {
+            val prev = if (i == 0) curId else deck[i - 1]
+            if (deck[i] == prev) {
+                val j = (i + 1 until deck.size).firstOrNull { deck[it] != prev && (i == 0 || deck[it] != deck[i - 1]) }
+                if (j != null) deck[i] = deck[j].also { deck[j] = deck[i] }
+            }
+        }
+        return deck.filterIndexed { i, id -> !(i == 0 && id == curId) }.toMutableList()
     }
 }

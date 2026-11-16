@@ -58,6 +58,18 @@
         android:text="Set as wallpaper now" />
 
     <TextView
+        android:id="@+id/actionFav"
+        style="@style/SheetAction"
+        android:drawableStart="@drawable/ic_favorite_border"
+        android:text="Add to favourites" />
+
+    <TextView
+        android:id="@+id/actionFace"
+        style="@style/SheetAction"
+        android:drawableStart="@drawable/ic_face"
+        android:text="Auto-frame faces" />
+
+    <TextView
         android:id="@+id/actionFit"
         style="@style/SheetAction"
         android:drawableStart="@drawable/ic_fit_screen"
