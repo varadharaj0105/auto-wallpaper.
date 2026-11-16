@@ -10,8 +10,9 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@android:drawable/ic_menu_gallery"
-        android:label="Auto Wallpaper">
+        android:icon="@mipmap/ic_launcher"
+        android:label="Auto Wallpaper"
+        android:theme="@style/Theme.AutoWallpaper">
 
         <activity
             android:name=".MainActivity"

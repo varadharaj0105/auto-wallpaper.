@@ -42,7 +42,7 @@ class AutoWallpaperService : WallpaperService() {
         // so the new wallpaper is already there when the screen comes back on.
         private val screenOffReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                Store.advance(this@AutoWallpaperService)
+                Store.onLock(this@AutoWallpaperService)
                 ensureLoaded()
                 draw()
             }

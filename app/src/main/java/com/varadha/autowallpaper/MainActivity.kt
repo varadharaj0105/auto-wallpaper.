@@ -1,6 +1,5 @@
 package com.varadha.autowallpaper
 
-import android.app.Activity
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
@@ -8,100 +7,164 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import com.varadha.autowallpaper.databinding.ActivityMainBinding
 
-/** Two buttons: pick the images, then set the live wallpaper. No libraries needed. */
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
-    private lateinit var status: TextView
+    private lateinit var b: ActivityMainBinding
+    private val adapter = WallAdapter(::onTap, ::onLongPress)
+
+    private val pickImages =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNullOrEmpty()) return@registerForActivityResult
+            uris.forEach {
+                runCatching {
+                    contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            }
+            val added = Store.add(this, uris)
+            render()
+            snack(if (added == 1) "1 photo added" else "$added photos added")
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        DynamicColors.applyToActivityIfAvailable(this) // Material You colours from the phone's theme
         super.onCreate(savedInstanceState)
-        val pad = (24 * resources.displayMetrics.density).toInt()
+        b = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(b.root)
 
-        status = TextView(this).apply { textSize = 16f }
-        val pick = Button(this).apply {
-            text = "1. Pick wallpapers"
-            setOnClickListener { pickImages() }
+        b.grid.layoutManager = GridLayoutManager(this, 3)
+        b.grid.adapter = adapter
+
+        b.fabAdd.setOnClickListener { pickImages.launch(arrayOf("image/*")) }
+        b.btnEmptyAdd.setOnClickListener { pickImages.launch(arrayOf("image/*")) }
+        b.btnApply.setOnClickListener { applyWallpaper() }
+        b.btnNext.setOnClickListener {
+            Store.advance(this)
+            render()
         }
-        val apply = Button(this).apply {
-            text = "2. Set as wallpaper (Home + Lock)"
-            setOnClickListener { applyWallpaper() }
+        b.btnClear.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Remove all photos?")
+                .setMessage("They stay in your gallery. Only this list is cleared.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove all") { _, _ ->
+                    Store.clear(this)
+                    render()
+                }
+                .show()
         }
 
-        val update = Button(this).apply {
-            visibility = View.GONE
-            setOnClickListener {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.DOWNLOAD_URL)))
+        b.switchShuffle.isChecked = Store.shuffle(this)
+        b.switchShuffle.setOnCheckedChangeListener { _, on ->
+            Store.setShuffle(this, on)
+            render()
+        }
+
+        when (Store.every(this)) {
+            2 -> b.chipEvery2
+            5 -> b.chipEvery5
+            else -> b.chipEvery1
+        }.isChecked = true
+        b.chipsEvery.setOnCheckedStateChangeListener { _, ids ->
+            val n = when (ids.firstOrNull()) {
+                R.id.chipEvery2 -> 2
+                R.id.chipEvery5 -> 5
+                else -> 1
             }
-        }
-        val version = TextView(this).apply {
-            textSize = 12f
-            text = "Version 1.${Updater.currentBuild(this@MainActivity)}"
+            Store.setEvery(this, n)
+            render()
         }
 
-        setContentView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(status)
-            addView(pick)
-            addView(apply)
-            addView(update)
-            addView(version)
-        })
-        refresh()
-
+        b.versionText.text = "Version 1.${Updater.currentBuild(this)}"
+        b.btnUpdate.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.DOWNLOAD_URL)))
+        }
         Updater.check(this) { latest ->
-            update.text = "Update available (1.$latest), tap to download"
-            update.visibility = View.VISIBLE
+            b.updateText.text = "Version 1.$latest is ready to install"
+            b.updateCard.visibility = View.VISIBLE
         }
     }
 
-    private fun refresh() {
-        val n = Store.uris(this).size
-        status.text = if (n == 0) "No images picked yet."
-        else "$n image(s) picked. The wallpaper changes every time you lock the phone."
+    override fun onResume() {
+        super.onResume()
+        render() // picks up "Active" after coming back from the wallpaper picker
     }
 
-    private fun pickImages() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-        }
-        startActivityForResult(intent, REQ_PICK)
-    }
+    private fun render() {
+        val uris = Store.uris(this)
+        val empty = uris.isEmpty()
+        val cur = Store.index(this)
+        val active = isActive()
+        val every = Store.every(this)
+        val shuffle = Store.shuffle(this)
 
-    @Deprecated("Plain Activity API, fine here")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_PICK || resultCode != RESULT_OK || data == null) return
+        adapter.submit(uris, if (empty) -1 else cur)
+        b.grid.visibility = if (empty) View.GONE else View.VISIBLE
+        b.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
+        b.btnClear.visibility = if (empty) View.GONE else View.VISIBLE
+        b.gridTitle.text = if (empty) "Your photos" else "Your photos · ${uris.size}"
 
-        val picked = mutableListOf<Uri>()
-        val clip = data.clipData
-        if (clip != null) {
-            for (i in 0 until clip.itemCount) picked += clip.getItemAt(i).uri
+        // Hero preview
+        if (empty) {
+            b.heroImage.setImageDrawable(null)
+            b.heroPlaceholder.visibility = View.VISIBLE
         } else {
-            data.data?.let { picked += it }
+            b.heroPlaceholder.visibility = View.GONE
+            Thumbs.load(b.heroImage, uris[cur], 900)
         }
-        if (picked.isEmpty()) return
 
-        // Drop access to the old set, keep access to the new set across reboots.
-        contentResolver.persistedUriPermissions.forEach {
-            runCatching {
-                contentResolver.releasePersistableUriPermission(it.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+        b.statusChip.text = if (active) "Active" else "Not active"
+        b.statusChip.setChipIconResource(if (active) R.drawable.ic_check else R.drawable.ic_pause)
+
+        b.heroTitle.text = when {
+            empty -> "No photos yet"
+            else -> "Photo ${cur + 1} of ${uris.size}"
         }
-        picked.forEach {
-            runCatching {
-                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+        val howOften = when (every) {
+            1 -> "every time you lock"
+            2 -> "every 2nd lock"
+            else -> "every ${every}th lock"
         }
-        Store.save(this, picked)
-        refresh()
+        b.heroSubtitle.text = when {
+            empty -> "Add some photos and they'll rotate on your Home and lock screen."
+            !active -> "Tap Set as wallpaper to start. Then it changes $howOften."
+            else -> "Changes $howOften" + if (shuffle) ", in random order." else "."
+        }
+
+        b.btnApply.visibility = if (active || empty) View.GONE else View.VISIBLE
+        b.btnNext.visibility = if (empty) View.GONE else View.VISIBLE
+        b.btnNext.isEnabled = uris.size > 1
     }
+
+    private fun onTap(position: Int) {
+        Store.setIndex(this, position)
+        render()
+        snack("This one shows next time you unlock")
+    }
+
+    private fun onLongPress(position: Int) {
+        val uri = Store.uris(this).getOrNull(position) ?: return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Remove this photo?")
+            .setMessage("It stays in your gallery. It just won't be used as a wallpaper.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Remove") { _, _ ->
+                Store.remove(this, uri)
+                render()
+            }
+            .show()
+    }
+
+    private fun isActive(): Boolean =
+        WallpaperManager.getInstance(this).wallpaperInfo?.component ==
+            ComponentName(this, AutoWallpaperService::class.java)
 
     private fun applyWallpaper() {
         val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(
@@ -115,7 +178,7 @@ class MainActivity : Activity() {
         }
     }
 
-    companion object {
-        private const val REQ_PICK = 1
+    private fun snack(text: String) {
+        Snackbar.make(b.root, text, Snackbar.LENGTH_SHORT).setAnchorView(b.fabAdd).show()
     }
 }
