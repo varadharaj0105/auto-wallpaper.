@@ -7,6 +7,9 @@
 
     <!-- Only used by the app screen to check GitHub for a newer version. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- In-app updates: install the new version over this app -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <application
         android:allowBackup="false"
@@ -28,6 +31,10 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AutoWallpaper.Adjust" />
+
+        <receiver
+            android:name=".InstallReceiver"
+            android:exported="false" />
 
         <service
             android:name=".NextTileService"

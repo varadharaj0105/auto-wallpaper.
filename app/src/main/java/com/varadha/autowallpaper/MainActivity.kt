@@ -72,13 +72,7 @@ class MainActivity : AppCompatActivity() {
         setupSettings()
 
         b.versionText.text = "Auto Wallpaper · version 1.${Updater.currentBuild(this)}"
-        b.btnUpdate.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.DOWNLOAD_URL)))
-        }
-        Updater.check(this) { latest ->
-            b.updateText.text = "Version 1.$latest is ready to install"
-            b.updateCard.visibility = View.VISIBLE
-        }
+        setupUpdates()
 
         // Photos picked in older versions were links to the gallery. Copy them in once.
         if (Importer.hasLegacy(this)) {
@@ -96,6 +90,102 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         render() // e.g. becomes "Active" after returning from the wallpaper picker
+        // Came back from the "Install unknown apps" switch: carry on with the update.
+        if (pendingUpdateAfterPermission && Updater.canInstall(this)) {
+            pendingUpdateAfterPermission = false
+            startUpdate()
+        }
+    }
+
+    override fun onDestroy() {
+        Updater.onInstallResult = null
+        super.onDestroy()
+    }
+
+    // ---------------- in-app updates ----------------
+
+    private var pendingUpdateAfterPermission = false
+    private var updating = false
+
+    private fun setupUpdates() {
+        Updater.cleanUp(this) // leftover download from the last update
+        Updater.onInstallResult = { ok, message ->
+            updating = false
+            if (ok) {
+                b.updateText.text = "Updated!"
+            } else {
+                showUpdateIdle()
+                snack(message ?: "Update failed")
+            }
+        }
+        b.btnUpdate.setOnClickListener { startUpdate() }
+        Updater.check(this) { release ->
+            b.updateText.text = "Version 1.${release.build} is available"
+            if (release.notes.isNotBlank()) {
+                b.updateNotes.text = release.notes
+                b.updateNotes.visibility = View.VISIBLE
+            }
+            b.updateCard.visibility = View.VISIBLE
+        }
+    }
+
+    private fun showUpdateIdle() {
+        b.btnUpdate.isEnabled = true
+        b.btnUpdate.text = "Update"
+        b.updateProgress.visibility = View.GONE
+    }
+
+    private fun startUpdate() {
+        if (updating) return
+        // Android asks once: allow this app to install its own updates.
+        if (!Updater.canInstall(this)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Allow updates")
+                .setMessage(
+                    "To update itself, Auto Wallpaper needs permission to install apps.\n\n" +
+                        "On the next screen, turn on “Allow from this source”, then come back."
+                )
+                .setNegativeButton("Not now", null)
+                .setPositiveButton("Open settings") { _, _ ->
+                    pendingUpdateAfterPermission = true
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                }
+                .show()
+            return
+        }
+        updating = true
+        b.btnUpdate.isEnabled = false
+        b.btnUpdate.text = "0%"
+        b.updateText.text = "Downloading update…"
+        b.updateProgress.visibility = View.INVISIBLE
+        b.updateProgress.isIndeterminate = false
+        b.updateProgress.progress = 0
+        b.updateProgress.visibility = View.VISIBLE
+        Updater.downloadAndInstall(
+            this,
+            onProgress = { pct ->
+                b.updateProgress.setProgressCompat(pct, true)
+                b.btnUpdate.text = "$pct%"
+            },
+            onInstalling = {
+                b.updateText.text = "Installing… the app will restart"
+                b.btnUpdate.text = "…"
+                b.updateProgress.visibility = View.INVISIBLE
+                b.updateProgress.isIndeterminate = true
+                b.updateProgress.visibility = View.VISIBLE
+            },
+            onError = { msg ->
+                updating = false
+                b.updateText.text = "Update failed"
+                showUpdateIdle()
+                snack("Couldn't download: $msg")
+            }
+        )
     }
 
     // ---------------- grid ----------------

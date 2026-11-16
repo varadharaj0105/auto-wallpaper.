@@ -42,3 +42,4 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: Auto Wallpaper build ${{ github.run_number }}
           files: AutoWallpaper.apk
+          body: ${{ github.event.head_commit.message }}
