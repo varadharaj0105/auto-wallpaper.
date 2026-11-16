@@ -15,7 +15,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 object AlbumSync {
 
-    data class Album(val id: String, val name: String, val count: Int)
+    /** [coverId] = newest photo in the album, used as its cover (0 = none). */
+    data class Album(val id: String, val name: String, val count: Int, val coverId: Long = 0L) {
+        val coverUri get() = if (coverId == 0L) null
+        else ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, coverId)
+    }
 
     private val running = AtomicBoolean(false)
     private const val LOCK_SYNC_GAP_MS = 15 * 60 * 1000L
@@ -27,25 +31,35 @@ object AlbumSync {
     fun hasPermission(c: Context) =
         c.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
-    /** All gallery albums with photos, biggest first. */
+    /** All gallery albums with photos, biggest first, each with its newest photo as cover. */
     fun albums(c: Context): List<Album> {
         if (!hasPermission(c)) return emptyList()
-        val counts = LinkedHashMap<String, Pair<String, Int>>()
+        data class Acc(val name: String, var count: Int, val cover: Long)
+        val acc = LinkedHashMap<String, Acc>()
         c.contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME),
-            null, null, null
+            arrayOf(
+                MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.BUCKET_ID,
+                MediaStore.Images.Media.BUCKET_DISPLAY_NAME
+            ),
+            null, null,
+            "${MediaStore.Images.Media.DATE_ADDED} DESC"
         )?.use { cur ->
-            val idCol = cur.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_ID)
+            val idCol = cur.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            val bucketCol = cur.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_ID)
             val nameCol = cur.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
             while (cur.moveToNext()) {
-                val id = cur.getString(idCol) ?: continue
-                val name = cur.getString(nameCol) ?: "Unnamed"
-                val old = counts[id]
-                counts[id] = name to ((old?.second ?: 0) + 1)
+                val bucket = cur.getString(bucketCol) ?: continue
+                val a = acc[bucket]
+                if (a == null) {
+                    acc[bucket] = Acc(cur.getString(nameCol) ?: "Other photos", 1, cur.getLong(idCol))
+                } else {
+                    a.count++
+                }
             }
         }
-        return counts.map { (id, v) -> Album(id, v.first, v.second) }.sortedByDescending { it.count }
+        return acc.map { (id, a) -> Album(id, a.name, a.count, a.cover) }.sortedByDescending { it.count }
     }
 
     /** Called by the wallpaper on lock: syncs in the background if it's been a while. */

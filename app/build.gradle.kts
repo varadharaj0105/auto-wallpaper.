@@ -15,6 +15,7 @@ android {
         val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionCode = build
         versionName = "1.$build"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // One fixed key for every build, so updates install over the old version.
@@ -54,4 +55,9 @@ dependencies {
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
     // On-device face detection (model via Google Play services, keeps the APK small)
     implementation("com.google.android.gms:play-services-mlkit-face-detection:17.1.0")
+
+    // Screenshot test (runs on an emulator on GitHub)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

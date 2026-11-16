@@ -2,12 +2,17 @@ package com.varadha.autowallpaper
 
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
+import android.util.Size
+import android.widget.ImageView
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** Small image loader: decodes off the main thread at the size needed and caches results. */
@@ -34,6 +39,39 @@ object Thumbs {
             main.post {
                 if (view.loadKey == key) {
                     view.setBitmap(bmp)
+                    view.alpha = 0f
+                    view.animate().alpha(1f).setDuration(160).start()
+                }
+            }
+        }
+    }
+
+    /** Loads a gallery image (album covers) into a plain ImageView. */
+    fun loadUri(view: ImageView, uri: Uri, size: Int) {
+        val key = "uri:$uri@$size"
+        view.tag = key
+        cache.get(key)?.let {
+            view.setImageBitmap(it)
+            return
+        }
+        view.setImageDrawable(null)
+        val cr = view.context.applicationContext.contentResolver
+        pool.execute {
+            val bmp = runCatching {
+                if (Build.VERSION.SDK_INT >= 29) cr.loadThumbnail(uri, Size(size, size), null)
+                else ImageDecoder.decodeBitmap(ImageDecoder.createSource(cr, uri)) { d, info, _ ->
+                    d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    val s = size.toFloat() / min(info.size.width, info.size.height)
+                    if (s < 1f) d.setTargetSize(
+                        (info.size.width * s).roundToInt().coerceAtLeast(1),
+                        (info.size.height * s).roundToInt().coerceAtLeast(1)
+                    )
+                }
+            }.getOrNull() ?: return@execute
+            cache.put(key, bmp)
+            main.post {
+                if (view.tag == key) {
+                    view.setImageBitmap(bmp)
                     view.alpha = 0f
                     view.animate().alpha(1f).setDuration(160).start()
                 }

@@ -257,6 +257,31 @@ object Store {
         setCurrent(c, next)
     }
 
+    /**
+     * The next few photos, for the "Coming up" strip. In order mode that's simply the next ones;
+     * in shuffle it's what's left in the current deck (may be fewer near the end of a round).
+     */
+    fun upcoming(c: Context, n: Int): List<Photo> {
+        val list = photos(c)
+        if (list.size <= 1) return emptyList()
+        val curId = current(c)?.id
+        val byId = list.associateBy { it.id }
+        val ids = if (shuffle(c)) {
+            var bag = prefs(c).getString(K_BAG, "").orEmpty().split(",")
+                .filter { it in byId && it != curId }
+            if (bag.isEmpty()) {
+                // Deal the next round now so "Coming up" can show it.
+                bag = newDeck(list, curId)
+                prefs(c).edit().putString(K_BAG, bag.joinToString(",")).apply()
+            }
+            bag.distinct()
+        } else {
+            val cur = list.indexOfFirst { it.id == curId }.coerceAtLeast(0)
+            (1 until list.size).map { list[(cur + it) % list.size].id }
+        }
+        return ids.take(n).mapNotNull { byId[it] }
+    }
+
     private fun newDeck(list: List<Photo>, curId: String?): MutableList<String> {
         val deck = list.flatMap { if (it.fav) listOf(it.id, it.id) else listOf(it.id) }
             .shuffled()

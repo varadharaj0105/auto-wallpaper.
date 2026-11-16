@@ -1,26 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Options for one photo. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingBottom="16dp">
+    android:paddingBottom="12dp">
 
+    <com.google.android.material.bottomsheet.BottomSheetDragHandleView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <!-- Preview + title -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="24dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="16dp">
+        android:paddingEnd="24dp">
 
         <com.google.android.material.card.MaterialCardView
             style="?attr/materialCardViewFilledStyle"
-            android:layout_width="64dp"
-            android:layout_height="128dp"
-            app:cardCornerRadius="12dp">
+            android:layout_width="72dp"
+            android:layout_height="152dp"
+            app:cardCornerRadius="14dp">
 
             <com.varadha.autowallpaper.FramedImageView
                 android:id="@+id/preview"
@@ -51,23 +55,65 @@
         </LinearLayout>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/actionShow"
-        style="@style/SheetAction"
-        android:drawableStart="@drawable/ic_wallpaper"
-        android:text="Set as wallpaper now" />
+    <!-- Main actions -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
 
-    <TextView
-        android:id="@+id/actionFav"
-        style="@style/SheetAction"
-        android:drawableStart="@drawable/ic_favorite_border"
-        android:text="Add to favourites" />
+        <LinearLayout
+            android:id="@+id/boxShow"
+            style="@style/HomeAction">
 
-    <TextView
-        android:id="@+id/actionFace"
-        style="@style/SheetAction"
-        android:drawableStart="@drawable/ic_face"
-        android:text="Auto-frame faces" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/actionShow"
+                style="@style/HomeActionButton"
+                android:contentDescription="Show now"
+                app:icon="@drawable/ic_wallpaper" />
+
+            <TextView
+                style="@style/HomeActionLabel"
+                android:text="Show now" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/HomeAction">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/actionAdjust"
+                style="@style/HomeActionButton"
+                android:contentDescription="Edit"
+                app:icon="@drawable/ic_crop" />
+
+            <TextView
+                style="@style/HomeActionLabel"
+                android:text="Edit" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/HomeAction">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/actionFav"
+                style="@style/HomeActionButton"
+                android:contentDescription="Favourite"
+                app:icon="@drawable/ic_favorite_border" />
+
+            <TextView
+                android:id="@+id/actionFavLabel"
+                style="@style/HomeActionLabel"
+                android:text="Favourite" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <com.google.android.material.divider.MaterialDivider
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="8dp" />
 
     <TextView
         android:id="@+id/actionFit"
@@ -82,14 +128,16 @@
         android:text="Layout: repeat 2× or 3×" />
 
     <TextView
-        android:id="@+id/actionAdjust"
+        android:id="@+id/actionFace"
         style="@style/SheetAction"
-        android:drawableStart="@drawable/ic_crop"
-        android:text="Edit: position, size, crop" />
+        android:drawableStart="@drawable/ic_face"
+        android:text="Auto-frame faces" />
 
     <TextView
         android:id="@+id/actionRemove"
         style="@style/SheetAction"
         android:drawableStart="@drawable/ic_delete"
-        android:text="Remove from list" />
+        android:text="Remove from rotation"
+        android:textColor="?attr/colorError"
+        app:drawableTint="?attr/colorError" />
 </LinearLayout>

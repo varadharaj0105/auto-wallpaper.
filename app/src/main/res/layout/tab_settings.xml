@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SETTINGS: grouped like the phone's own settings. -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:paddingBottom="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="4dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="8dp"
+            android:text="Settings"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+
+        <!-- Changing -->
+        <TextView
+            style="@style/SectionLabel"
+            android:layout_marginTop="16dp"
+            android:text="Changing" />
+
+        <com.google.android.material.card.MaterialCardView style="@style/SettingsGroup">
+
+            <LinearLayout style="@style/SettingsGroupInner">
+
+                <include
+                    android:id="@+id/rowAuto"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowEvery"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowShuffle"
+                    layout="@layout/row_switch" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- New photos -->
+        <TextView
+            style="@style/SectionLabel"
+            android:layout_marginTop="24dp"
+            android:text="New photos" />
+
+        <com.google.android.material.card.MaterialCardView style="@style/SettingsGroup">
+
+            <LinearLayout style="@style/SettingsGroupInner">
+
+                <include
+                    android:id="@+id/rowAutoFace"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowFitNew"
+                    layout="@layout/row_switch" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Look -->
+        <TextView
+            style="@style/SectionLabel"
+            android:layout_marginTop="24dp"
+            android:text="Look" />
+
+        <com.google.android.material.card.MaterialCardView style="@style/SettingsGroup">
+
+            <LinearLayout style="@style/SettingsGroupInner">
+
+                <include
+                    android:id="@+id/rowAnimate"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowDim"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowColors"
+                    layout="@layout/row_switch" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- About -->
+        <TextView
+            style="@style/SectionLabel"
+            android:layout_marginTop="24dp"
+            android:text="About" />
+
+        <com.google.android.material.card.MaterialCardView style="@style/SettingsGroup">
+
+            <LinearLayout style="@style/SettingsGroupInner">
+
+                <include
+                    android:id="@+id/rowTile"
+                    layout="@layout/row_switch" />
+
+                <include
+                    android:id="@+id/rowVersion"
+                    layout="@layout/row_switch" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
