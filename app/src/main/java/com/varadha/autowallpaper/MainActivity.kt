@@ -78,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(b.root)
 
         b.nav.setOnItemSelectedListener {
-            showTab(it.itemId)
+            showTabContent(it.itemId)
             true
         }
         setupHome()
@@ -115,12 +115,15 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    /** Switches tab. Also used by the screenshot test. */
+    /** Switches tab (goes through the bottom bar so it stays in step). Also used by the screenshot test. */
     fun showTab(id: Int) {
+        if (b.nav.selectedItemId != id) b.nav.selectedItemId = id else showTabContent(id)
+    }
+
+    private fun showTabContent(id: Int) {
         b.home.root.visibility = if (id == R.id.navHome) View.VISIBLE else View.GONE
         b.photos.root.visibility = if (id == R.id.navPhotos) View.VISIBLE else View.GONE
         b.settings.root.visibility = if (id == R.id.navSettings) View.VISIBLE else View.GONE
-        if (b.nav.selectedItemId != id) b.nav.selectedItemId = id
     }
 
     private fun render() {
